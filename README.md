@@ -25,6 +25,14 @@ Run the sampler as a continuous process. It takes a random sample of DOIs from t
 
 To ingest one complete sample for all members and exit.
 
+### Chrome Snapshot 
+
+Currently work in progress. Run Chrome in a container:
+
+    docker run -d -p 9222:9222 --cap-add=SYS_ADMIN justinribeiro/chrome-headless
+
+In repl `web-visitor.chrome/one url filename`.
+
 ## License
 
 Copyright © Crossref
