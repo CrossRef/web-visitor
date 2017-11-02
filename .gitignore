@@ -9,3 +9,8 @@ pom.xml.asc
 /.nrepl-port
 .hgignore
 .hg/
+.env
+.DS_Store
+.m2-cache
+.env
+local

@@ -1,0 +1,164 @@
+version: '2'
+
+volumes:
+  esdata1:
+    driver: local
+
+services:
+  kafka:
+    image: spotify/kafka
+
+  # Run continual DOI sampling from Crossref in a loop.
+  sample_crossref:
+    depends_on:
+     - kafka
+    environment:
+      - GLOBAL_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - VISITOR_S3_KEY=${VISITOR_S3_KEY}
+      - VISITOR_S3_SECRET=${VISITOR_S3_SECRET}
+      - VISITOR_S3_REGION_NAME=${VISITOR_S3_REGION_NAME}
+      - VISITOR_S3_BUCKET_NAME=${VISITOR_S3_BUCKET_NAME}
+      - VISITOR_SAMPLE_TOPIC=visitor_sample
+      - VISITOR_OBSERVATION_TOPIC=visitor_observation
+      - VISITOR_EXTRACTION_TOPIC=visitor_extraction
+      - VISITOR_ANALYSIS_TOPIC=visitor_analysis
+    build: .
+    volumes:
+     - .:/usr/src/app
+     - ./.m2-cache:/root/.m2
+    command: "lein run sample-crossref-continuous"
+
+
+  # Run continual DOI sampling from Crossref in a loop.
+  sample_datacite:
+    depends_on:
+     - kafka
+    environment:
+      - GLOBAL_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - VISITOR_S3_KEY=${VISITOR_S3_KEY}
+      - VISITOR_S3_SECRET=${VISITOR_S3_SECRET}
+      - VISITOR_S3_REGION_NAME=${VISITOR_S3_REGION_NAME}
+      - VISITOR_S3_BUCKET_NAME=${VISITOR_S3_BUCKET_NAME}
+      - VISITOR_SAMPLE_TOPIC=visitor_sample
+      - VISITOR_OBSERVATION_TOPIC=visitor_observation
+      - VISITOR_EXTRACTION_TOPIC=visitor_extraction
+      - VISITOR_ANALYSIS_TOPIC=visitor_analysis
+    build: .
+    volumes:
+     - .:/usr/src/app
+     - ./.m2-cache:/root/.m2
+    command: "lein run sample-datacite-continuous"
+
+
+  # Run continual 'observation' stage on new samples. 
+  observation1:
+    depends_on:
+     - kafka
+    environment:
+      - GLOBAL_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - VISITOR_S3_KEY=${VISITOR_S3_KEY}
+      - VISITOR_S3_SECRET=${VISITOR_S3_SECRET}
+      - VISITOR_S3_REGION_NAME=${VISITOR_S3_REGION_NAME}
+      - VISITOR_S3_BUCKET_NAME=${VISITOR_S3_BUCKET_NAME}
+      - VISITOR_SAMPLE_TOPIC=visitor_sample
+      - VISITOR_OBSERVATION_TOPIC=visitor_observation
+      - VISITOR_EXTRACTION_TOPIC=visitor_extraction
+      - VISITOR_ANALYSIS_TOPIC=visitor_analysis
+    build: .
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+     - .:/usr/src/app
+     # NB different user for this container.
+     - ./.m2-cache:/home/chrome/.m2
+    command: "lein run observation-continuous"
+
+  observation2:
+    depends_on:
+     - kafka
+    environment:
+      - GLOBAL_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - VISITOR_S3_KEY=${VISITOR_S3_KEY}
+      - VISITOR_S3_SECRET=${VISITOR_S3_SECRET}
+      - VISITOR_S3_REGION_NAME=${VISITOR_S3_REGION_NAME}
+      - VISITOR_S3_BUCKET_NAME=${VISITOR_S3_BUCKET_NAME}
+      - VISITOR_SAMPLE_TOPIC=visitor_sample
+      - VISITOR_OBSERVATION_TOPIC=visitor_observation
+      - VISITOR_EXTRACTION_TOPIC=visitor_extraction
+      - VISITOR_ANALYSIS_TOPIC=visitor_analysis
+    build: .
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+     - .:/usr/src/app
+     # NB different user for this container.
+     - ./.m2-cache:/home/chrome/.m2
+    command: "lein run observation-continuous"
+
+
+  observation3:
+    depends_on:
+     - kafka
+    environment:
+      - GLOBAL_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - VISITOR_S3_KEY=${VISITOR_S3_KEY}
+      - VISITOR_S3_SECRET=${VISITOR_S3_SECRET}
+      - VISITOR_S3_REGION_NAME=${VISITOR_S3_REGION_NAME}
+      - VISITOR_S3_BUCKET_NAME=${VISITOR_S3_BUCKET_NAME}
+      - VISITOR_SAMPLE_TOPIC=visitor_sample
+      - VISITOR_OBSERVATION_TOPIC=visitor_observation
+      - VISITOR_EXTRACTION_TOPIC=visitor_extraction
+      - VISITOR_ANALYSIS_TOPIC=visitor_analysis
+    build: .
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+     - .:/usr/src/app
+     # NB different user for this container.
+     - ./.m2-cache:/home/chrome/.m2
+    command: "lein run observation-continuous"
+
+  extraction:
+    depends_on:
+     - kafka
+    environment:
+      - GLOBAL_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - VISITOR_S3_KEY=${VISITOR_S3_KEY}
+      - VISITOR_S3_SECRET=${VISITOR_S3_SECRET}
+      - VISITOR_S3_REGION_NAME=${VISITOR_S3_REGION_NAME}
+      - VISITOR_S3_BUCKET_NAME=${VISITOR_S3_BUCKET_NAME}
+      - VISITOR_SAMPLE_TOPIC=visitor_sample
+      - VISITOR_OBSERVATION_TOPIC=visitor_observation
+      - VISITOR_EXTRACTION_TOPIC=visitor_extraction
+      - VISITOR_ANALYSIS_TOPIC=visitor_analysis
+    build: .
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+     - .:/usr/src/app
+     # NB different user for this container.
+     - ./.m2-cache:/home/chrome/.m2
+    command: "lein run extraction-continuous"
+
+
+  aggregation:
+    depends_on:
+     - kafka
+    environment:
+      - GLOBAL_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - VISITOR_S3_KEY=${VISITOR_S3_KEY}
+      - VISITOR_S3_SECRET=${VISITOR_S3_SECRET}
+      - VISITOR_S3_REGION_NAME=${VISITOR_S3_REGION_NAME}
+      - VISITOR_S3_BUCKET_NAME=${VISITOR_S3_BUCKET_NAME}
+      - VISITOR_SAMPLE_TOPIC=visitor_sample
+      - VISITOR_OBSERVATION_TOPIC=visitor_observation
+      - VISITOR_EXTRACTION_TOPIC=visitor_extraction
+      - VISITOR_ANALYSIS_TOPIC=visitor_analysis
+    build: .
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+     - .:/usr/src/app
+     # NB different user for this container.
+     - ./.m2-cache:/home/chrome/.m2
+    command: "lein run aggregation-once"
