@@ -3,7 +3,6 @@
   (:require [clojure.tools.logging :as log]
             [web-visitor.http :as http]
             [clojure.data.json :as json]
-            [config.core :refer [env]]
             [overtone.at-at :as at-at]
             [clj-time.core :as clj-time])
   (:import [io.webfolder.cdp Launcher]
@@ -33,6 +32,7 @@
 
 (def launcher (atom nil))
 (def session-factory (atom nil))
+(def session (atom nil))
 
 (defn get-chrome-processes
   "Return a list of Process IDs (as strings) for running Chrome procesess."
@@ -46,14 +46,22 @@
 
 (defn kill-chrome!
   []
-   (when-let [the-session-factory @session-factory]
-    (.close the-session-factory))
+   (log/info "Killing Chrome. Get process IDs...")
+   (let [processes (get-chrome-processes)]
+    (log/info "Killing Chrome processes" processes "...")
+     (doseq [pid processes]
+       (log/info "Killing process" pid)
+       (.exec (Runtime/getRuntime) (str "kill -9 " pid))))
+   (log/info "Finished killing Chrome"))
 
-   (reset! session-factory nil)
-   (reset! launcher nil)
-   (doseq [pid (get-chrome-processes)]
-     (log/info "Killing process" pid)
-     (.exec (Runtime/getRuntime) (str "kill -9 " pid))))
+(defn teardown!
+  "When something goes wrong communicating with the Chrome process, reset all state and kill Chrome."
+  []
+  ; Don't try to call close on these, it will hang indefinitely under these circumstances.
+  (reset! session-factory nil)
+  (reset! session nil)
+  (reset! launcher nil)
+  (kill-chrome!))
 
 (def last-watchdog (atom nil))
 
@@ -80,75 +88,6 @@
           (reset! @last-watchdog nil))))
     schedule-pool)))
 
-
-(defn fetch-throwing [factory url]
-  (with-open [session (.create factory)]
-    (let [command (.getCommand session)
-          network (.getNetwork command)
-          ; Keep a log of all ResponseReceived objects
-          ; Some will be in the the non-main frame (e.g. iframes)
-          ; Filter later
-          all-requested-documents (atom [])]
-                
-
-      (.enable network)
-      (.setUserAgentOverride network http/user-agent)
-
-      ; Capture all network request / response along with frame unmber.
-      (.addEventListener session (fi EventListener [e d]
-        (when (and (= Events/NetworkRequestWillBeSent e)
-                   (= (type d) RequestWillBeSent))
-          (when-let [redirect-response (.getRedirectResponse d)]
-            (when (= ResourceType/Document (.getType d))
-              (swap! all-requested-documents conj
-                {:url (.getUrl redirect-response)
-                 :body nil
-                 :timestamp (.getRequestTime (.getTiming redirect-response))
-                 :status (int (.getStatus redirect-response))
-                 :frame-id (.getFrameId d)}))))
-        (when (= Events/NetworkResponseReceived e)
-
-          (let [response (.getResponse d)
-                resource-type (.getType d)
-                frame-id (.getFrameId d)]
-
-            (when (= resource-type ResourceType/Document)
-              (let [url (.getUrl response)
-                    status (int (.getStatus response))]
-                (swap! all-requested-documents conj {:url url
-                  :status status
-                  :body nil
-                  :timestamp (.getRequestTime (.getTiming response))
-                  :frame-id frame-id})))))))
-      (.navigate session url)
-      ; Give it 5 seconds after the DOM is loaded.
-      (.waitDocumentReady session)
-      (Thread/sleep 5000)
-
-      ; We only want those documents that were requested in the main frame.
-      ; The Session's main frame ID is only available after we started the navigation
-      ; (but before we had to register the event listener).
-      ; This should match all HTML and XML documents.
-      (let [dom-content (.getProperty session ":root" "outerHTML")
-            session-frame-id (.getFrameId session)
-            trace (filter #(= (:frame-id %) session-frame-id) @all-requested-documents)]
-
-        ; If we got nothing, end here.
-        (when >= (count trace) 1)
-          (let [sorted (sort-by :timestamp trace)
-                with-keys (map #(select-keys % [:url :status :body]) sorted)]
-            
-            ; If there's no trace, return nil, not an empty list.
-            (if (empty? with-keys)
-              nil
-              (let [; We only have the body content for the last item, so we fake nils and then assoc in the last item.
-                    last-item (assoc (last with-keys) :body dom-content)
-                    rest-items (drop-last 1 with-keys)
-                    
-                    ; Make sure it's realized becuase we're in a resource-managed context.
-                    result (doall (concat rest-items [last-item]))]
-                  result)))))))
-
 (defn get-factory
   "Return a session factory, launching Chrome if needed."
   []
@@ -161,34 +100,121 @@
         (reset! session-factory the-session-factory)))
     @session-factory)
 
+(defn get-session
+  []
+  (or @session
+      (reset! session (.create (get-factory)))))
+
+(defn fetch-throwing [session url]
+  (log/info "Fetch url" url "using session" session)
+  (let [command (.getCommand session)
+        network (.getNetwork command)
+        ; Keep a log of all ResponseReceived objects
+        ; Some will be in the the non-main frame (e.g. iframes)
+        ; Filter later
+        all-requested-documents (atom [])]
+              
+
+    (.enable network)
+    (.setUserAgentOverride network http/user-agent)
+
+    ; Capture all network request / response along with frame unmber.
+    (.addEventListener session (fi EventListener [e d]
+      (when (and (= Events/NetworkRequestWillBeSent e)
+                 (= (type d) RequestWillBeSent))
+        (when-let [redirect-response (.getRedirectResponse d)]
+          (when (= ResourceType/Document (.getType d))
+            (swap! all-requested-documents conj
+              {:url (.getUrl redirect-response)
+               :body nil
+               :timestamp (.getRequestTime (.getTiming redirect-response))
+               :status (int (.getStatus redirect-response))
+               :frame-id (.getFrameId d)}))))
+      (when (= Events/NetworkResponseReceived e)
+
+        (let [response (.getResponse d)
+              resource-type (.getType d)
+              frame-id (.getFrameId d)]
+
+          (when (= resource-type ResourceType/Document)
+            (let [url (.getUrl response)
+                  status (int (.getStatus response))]
+              (swap! all-requested-documents conj {:url url
+                :status status
+                :body nil
+                :timestamp (.getRequestTime (.getTiming response))
+                :frame-id frame-id})))))))
+    
+    ; Cleanse the palatte.
+    (.navigate session "about:blank")
+    (.waitDocumentReady session)
+
+    (.navigate session url)
+    
+    ; If the document isn't ready after 10 seconds, that's no big issue, we can still get the content.
+    ; We some kind of reasonable timeout.
+    (try 
+      (.waitDocumentReady session 10000)
+
+      (catch io.webfolder.cdp.exception.LoadTimeoutException ex
+        (log/info "Timeout from URL" url)))
+
+    ; Give it 5 seconds after the DOM is loaded for any  JS to execute.
+    (Thread/sleep 5000)
+
+
+    ; We only want those documents that were requested in the main frame.
+    ; The Session's main frame ID is only available after we started the navigation
+    ; (but before we had to register the event listener).
+    ; This should match all HTML and XML documents.
+    ; There maybe a NPE from (.getProperty session), in which case return nil.
+    (let [dom-content (try (.getProperty session ":root" "outerHTML") (catch Exception e (do (log/error "NPE getting HTML for" url) nil)))
+          session-frame-id (.getFrameId session)
+          trace (filter #(= (:frame-id %) session-frame-id) @all-requested-documents)]
+
+      ; If we got nothing, end here.
+      (when >= (count trace) 1)
+        (let [sorted (sort-by :timestamp trace)
+              with-keys (map #(select-keys % [:url :status :body]) sorted)]
+          
+          ; If there's no trace, return nil, not an empty list.
+          (if (empty? with-keys)
+            nil
+            (let [; We only have the body content for the last item, so we fake nils and then assoc in the last item.
+                  last-item (assoc (last with-keys) :body dom-content)
+                  rest-items (drop-last 1 with-keys)
+                  
+                  ; Make sure it's realized becuase we're in a resource-managed context.
+                  result (doall (concat rest-items [last-item]))]
+                result))))))
+
+
 (defn fetch
   [url]
   (log/info "Set watchdog")
   (reset! last-watchdog (clj-time/now))
 
   (try
-    (log/info "Fetch" url)
-    (fetch-throwing (get-factory) url)
+    (log/info "Fetch 1 " url)
+    (fetch-throwing (get-session) url)
 
-    (catch Exception e
+    (catch Exception e1
       (do
-        (log/error "First error fetching" url e)
-        (log/info "Killing Chrome")
-        (kill-chrome!)
-        (log/info "Getting new Chrome process.")
-        
-        (let [new-factory (get-factory)]
-          (log/info "New Chrome PID:" (get-chrome-processes))
+        (log/error "First error fetching" url e1)
+        (log/info "Try with new session...")
+        (teardown!)
 
         (try
-          (log/info "Try again fetch" url)
-          (fetch-throwing new-factory url)
+          (log/info "Fetch 2 " url)
+          (reset! last-watchdog (clj-time/now))
+          (fetch-throwing (get-session) url)
 
           (catch Exception e2
             (do
               (log/error "Second error fetching" url e2)
-              nil)))
-        nil)))
+
+              nil)))))
+
 
     ; Call off the dogs.
     (finally

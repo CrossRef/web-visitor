@@ -28,7 +28,7 @@ Tp run, assuming use of the Docker Compose file:
 
 Start things up:
 
-    docker-compose up
+    docker-compose start kafka
 
     ./create-topics.sh
 

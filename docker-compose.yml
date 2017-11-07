@@ -1,4 +1,4 @@
-version: '2'
+version: '3'
 
 volumes:
   esdata1:
@@ -97,6 +97,50 @@ services:
 
 
   observation3:
+    depends_on:
+     - kafka
+    environment:
+      - GLOBAL_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - VISITOR_S3_KEY=${VISITOR_S3_KEY}
+      - VISITOR_S3_SECRET=${VISITOR_S3_SECRET}
+      - VISITOR_S3_REGION_NAME=${VISITOR_S3_REGION_NAME}
+      - VISITOR_S3_BUCKET_NAME=${VISITOR_S3_BUCKET_NAME}
+      - VISITOR_SAMPLE_TOPIC=visitor_sample
+      - VISITOR_OBSERVATION_TOPIC=visitor_observation
+      - VISITOR_EXTRACTION_TOPIC=visitor_extraction
+      - VISITOR_ANALYSIS_TOPIC=visitor_analysis
+    build: .
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+     - .:/usr/src/app
+     # NB different user for this container.
+     - ./.m2-cache:/home/chrome/.m2
+    command: "lein run observation-continuous"
+
+  observation4:
+    depends_on:
+     - kafka
+    environment:
+      - GLOBAL_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - VISITOR_S3_KEY=${VISITOR_S3_KEY}
+      - VISITOR_S3_SECRET=${VISITOR_S3_SECRET}
+      - VISITOR_S3_REGION_NAME=${VISITOR_S3_REGION_NAME}
+      - VISITOR_S3_BUCKET_NAME=${VISITOR_S3_BUCKET_NAME}
+      - VISITOR_SAMPLE_TOPIC=visitor_sample
+      - VISITOR_OBSERVATION_TOPIC=visitor_observation
+      - VISITOR_EXTRACTION_TOPIC=visitor_extraction
+      - VISITOR_ANALYSIS_TOPIC=visitor_analysis
+    build: .
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+     - .:/usr/src/app
+     # NB different user for this container.
+     - ./.m2-cache:/home/chrome/.m2
+    command: "lein run observation-continuous"
+
+  observation5:
     depends_on:
      - kafka
     environment:

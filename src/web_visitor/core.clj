@@ -135,33 +135,40 @@
     (.subscribe consumer (list input-topic-name))
     (log/info "Polling" input-topic-name "...")
       (loop []
-        (let [^ConsumerRecords records (.poll consumer (int 10000))]
+        (let [^ConsumerRecords records (.poll consumer (int 10000))
+
+              ; Fetch and deduplicate in parallel, as this involves lots of slow S3 access.
+              inputs (pmap (fn [record]
+                             (let [id (.key record)
+                                   s3-path (.value record)
+                                   existing-output-path (path-for output-package-type id)
+                                   existing-output (store/get-string @data-store existing-output-path)
+                                   has-existing-output? (some? existing-output)]
+                                
+                                ; If we already processed this, take no further action.
+                                (when has-existing-output?
+                                  (log/info "Skip" output-package-type "/" id))
+
+                                ; Delay fetching of content until we know we need it.
+                                (when-not has-existing-output?
+                                  {:content (store/get-string @data-store s3-path)
+                                   :id id})))
+                            records)]
+
           (log/info "Got" (.count records) "records from" input-topic-name "partitions:" (map str (.partitions records)))
-          (dorun
-            (map
-              (fn [record]
-                (let [id (.key record)
-                      s3-path (.value record)
-
-                      existing-output-path (path-for output-package-type id)
-                      existing-output (store/get-string @data-store existing-output-path)
-                      has-existing-output? (some? existing-output)]
-
-                  ; If we already processed this, take no further action.
-                  (when has-existing-output?
-                    (log/info "Skip" output-package-type "/" id))
-
-                  ; Lots of nil handling in case the stream has IDs that were never saved.
-                  (when-not has-existing-output?
-                    (log/info "Process" output-package-type "/" id)
-                    (let [input-content (store/get-string @data-store s3-path)
-                          parsed (when input-content (json/read-str input-content :key-fn keyword))
-                          result (when parsed (f id parsed))]
-                      
-                      (when result
-                        (save (:id parsed) output-package-type output-topic-name result))))))
-
-                records)))
+          
+          ; Serialize execution that invovles Chrome.
+          (doseq [input inputs]
+            ; Duplicates result in nil inputs, skip.
+            (when input
+              ; Lots of nil handling in case the stream has IDs that were never saved.
+                (log/info "Process" output-package-type "/" (:id input))
+                (let [input-content (:content input)
+                      parsed (when input-content (json/read-str input-content :key-fn keyword))
+                      result (when parsed (f (:id input) parsed))]
+                  
+                  (when result
+                    (save (:id parsed) output-package-type output-topic-name result))))))
         (recur))))
 
 
@@ -180,7 +187,7 @@
   "Rescan storage back into Kafka queue for reprocessing."
   [topic-name package-type]
   (log/info "Requeue type:" (name package-type) "topic:" topic-name)
-  (doseq [[id storage-path] (all-keys-for-type)]
+  (doseq [[id storage-path] (all-keys-for-type package-type)]
       (log/info "Requeue " id)
       (.send @kafka-producer
         (ProducerRecord. topic-name id storage-path))))
@@ -205,6 +212,17 @@
           (log/info "Got" (.count records) "records from" input-topic-name "partitions:" (map str (.partitions records))))
         (recur))))
 
+(defn skip-url?
+  [resource-url]
+  (cond
+   ; Yes, this happened.
+   (nil? resource-url) :nil-resource
+
+   ; PDFs are often large files.
+   ; There is nothing we can do with PDFs
+   ; No good can come from archiving them.
+   (.contains resource-url ".pdf") :pdf
+       :default nil))
 
 (defn perform-observation
   "Accept a sample input package, return an observation package."
@@ -221,7 +239,7 @@
                ; PDFs are often large files.
                ; There is nothing we can do with PDFs
                ; No good can come from archiving them.
-               (.endsWith resource-url ".pdf") :pdf
+               (.contains resource-url ".pdf") :pdf
                :default nil)
         
         ; Retrive objects of {:url :status :body}
@@ -331,19 +349,23 @@
 (defn run-aggregation
   "Run aggregation and return structure."
   []
-  (let [extraction-storage-paths (all-keys-for-type :extraction)]
+  (let [extraction-storage-paths (all-keys-for-type :extraction)
+        ; Parallel fetch the blobs, big speedup.
+        ; Take seq of [id path] return seq of [id string-data].
+        data-seq (pmap (fn [[id storage-path]]
+                       [id (store/get-string @data-store storage-path)]) extraction-storage-paths)]
     (loop [acc {}
-           paths extraction-storage-paths]
+           paths data-seq
+           cnt 0]
       (if (empty? paths)
         acc
-        (let [[id storage-path] (first paths)
-              extraction-data (store/get-string @data-store storage-path)
+        (let [[id extraction-data] (first paths)
               parsed (when extraction-data (json/read-str extraction-data :key-fn keyword))
               acc (aggregate/aggregate acc parsed)
               ; Replace this each time so we know how far we got.
               acc (assoc acc :last-id-seen id)]
-          (log/info "Aggregated" id)
-          (recur acc (rest paths)))))))
+          (log/info "Aggregated" cnt id)
+          (recur acc (rest paths) (inc cnt)))))))
 
 (defn run-aggregation-once
   "Run and save."

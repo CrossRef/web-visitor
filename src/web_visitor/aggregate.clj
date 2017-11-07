@@ -41,7 +41,7 @@
         all-domains (:all-domains extraction)]
     (->
       acc
-      (update-in [:source source])
+      (update-in [:source source] i)
 
       (update-in [:prefixes prefix :total] i)
 
