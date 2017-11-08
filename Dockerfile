@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y \
 RUN groupadd -r chrome && useradd -r -g chrome -G audio,video chrome \
     && mkdir -p /home/chrome && chown -R chrome:chrome /home/chrome
 
-
+RUN usermod -u 1000 chrome
 
 COPY src /usr/src/app/src
 COPY test /usr/src/app/test
@@ -36,4 +36,6 @@ COPY project.clj /usr/src/app/project.clj
 USER chrome
 
 WORKDIR /usr/src/app
+
+RUN lein deps
 
