@@ -1,6 +1,7 @@
 (ns web-visitor.html
   (:require [clojure.tools.logging :as log]
-            [crossref.util.doi :as cr-doi])
+            [crossref.util.doi :as cr-doi]
+            [clojure.string :as string])
   (:import [org.jsoup Jsoup]))
 
 (def interested-meta-tag-names
@@ -9,9 +10,6 @@
     "dc.identifier"
     "dc.identifier.doi"
     "prism.doi"})
-
-    ["meta[name=DC.Source]" "content"]
-
 
 (defn identifier-doi-tags-present
   "Return seq of [meta-tag-name, content] for all types of meta tag we're interested in."
@@ -39,16 +37,44 @@
       (.printStackTrace ex)
       nil))))
 
-(defn create-doi-summary
+(defn try-get-domain
+  [url-str]
+  (try
+    (.getHost (java.net.URI. url-str))
+    (catch Exception _ nil)))
+
+(defn summary-from-trace
   "For HTML text and DOI return those meta tags that matched the DOI and those that contained a conflicting DOI."
-  [un-normalised-doi html-text]
-  (let [doi (cr-doi/normalise-doi un-normalised-doi)
-        tags-present (identifier-doi-tags-present html-text)
+  [doi trace]
+  (let [doi (cr-doi/normalise-doi doi)
+        prefix (cr-doi/get-prefix doi)
+
+        body (or (-> trace last :body) "")
+        url (-> trace last :url)
+        urls (map :url trace)
+        lowercase-body (string/lower-case body)
+
+        tags-present (identifier-doi-tags-present body)
+        
         ; Split into those tags that had the DOI and those that had something else.
         ; As these are all regarded as well-formed, these must be competing DOIs!
-        matches (map first (filter #(= doi (second %)) tags-present))
-        conflicts (map first (remove #(= doi (second %)) tags-present))]
+        correct-doi-meta-tags (map first (filter #(= doi (second %)) tags-present))
+        incorrect-doi-meta-tags (map first (remove #(= doi (second %)) tags-present))
 
-  {:matches matches
-   :conflicts conflicts}))
+        correct-prefix-meta-tags (map first (filter #(= prefix (cr-doi/get-prefix (second %))) tags-present))
+        incorrect-prefix-meta-tags (map first (remove #(= prefix (cr-doi/get-prefix (second %))) tags-present))
+        text-doi-matches (string/includes? lowercase-body (string/lower-case (cr-doi/non-url-doi doi)))
+        text-prefix-matches (string/includes? body prefix)]
 
+; As these results are an output of the program, they are documented in the README.md
+{:domain (try-get-domain url)
+ :domains (distinct (keep try-get-domain urls))
+ :redirects-count (count trace)
+ :correct-doi-meta-tags correct-doi-meta-tags
+ :incorrect-doi-meta-tags incorrect-doi-meta-tags
+ :doi-roundtrip (boolean (and (not-empty correct-prefix-meta-tags) (empty? incorrect-doi-meta-tags)))
+ :correct-prefix-meta-tags correct-prefix-meta-tags
+ :incorrect-prefix-meta-tags incorrect-prefix-meta-tags
+ :prefix-roundtrip (boolean (and (not-empty correct-prefix-meta-tags) (empty? incorrect-prefix-meta-tags)))
+ :text-doi-matches text-doi-matches
+ :text-prefix-matches text-prefix-matches}))
