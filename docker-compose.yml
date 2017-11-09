@@ -108,6 +108,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation4:
@@ -128,6 +129,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation5:
@@ -148,6 +150,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation6:
@@ -168,6 +171,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation7:
@@ -188,6 +192,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation8:
@@ -208,6 +213,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation9:
@@ -228,6 +234,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation10:
@@ -248,6 +255,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   # Run continual 'observation' stage on new samples. 
@@ -269,6 +277,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation12:
@@ -289,6 +298,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
 
@@ -310,6 +320,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation14:
@@ -330,6 +341,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation15:
@@ -350,6 +362,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation16:
@@ -370,6 +383,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation17:
@@ -390,6 +404,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation18:
@@ -410,6 +425,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation19:
@@ -430,6 +446,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation20:
@@ -450,6 +467,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
 
@@ -471,6 +489,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run extraction-continuous"
 
 
