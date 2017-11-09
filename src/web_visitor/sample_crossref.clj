@@ -18,7 +18,10 @@
   ([offset]
     (log/info "Fetch all members, offset" offset)
     (let [response @(http/get (str api-base "members")
-                             {:query-params {:rows member-page-size :offset offset}
+                             {:query-params {
+                                :rows member-page-size
+                                :offset offset
+                                :mailto "eventdata@crossref.org"}
                               :as :text
                               :headers web-visitor.http/headers})
           body (json/read-str (:body response) :key-fn keyword)
@@ -60,7 +63,8 @@
   (let [response @(http/get (str api-base "works")
                            {:query-params {:sample num-samples
                                            :select "DOI"
-                                           :filter (str "member:" member-id)}
+                                           :filter (str "member:" member-id)
+                                           :mailto "eventdata@crossref.org"}
                             :as :text})
         body (json/read-str (:body response) :key-fn keyword)
         works (-> body :message :items)]
