@@ -83,7 +83,8 @@
   (let [; Order doesn't matter, so sort by member ID so we know how far we are through the job.
         members-and-counts (sort-by first (all-members))
         members-and-samples (num-samples-per-member members-and-counts)
-        dois (mapcat doi-sample-for-member members-and-samples)
+        doi-sets (pmap doi-sample-for-member members-and-samples)
+        dois (mapcat identity doi-sets)
         shuffled (shuffle dois)]
     shuffled))
 

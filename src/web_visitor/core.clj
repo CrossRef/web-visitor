@@ -72,7 +72,8 @@
 
 (defn save
   "Save package to store and enqueue for downstream processing.
-   topic-name optional, omit to not send to Kafka."
+   topic-name optional, omit to not send to Kafka.
+   Thread-safe."
   [id package-type topic-name package-structure]
   (log/info "Save" package-type "/" id)
   (let [json (json/write-str package-structure)
@@ -89,17 +90,22 @@
   "Collect a random sample of DOIs, weighted by publisher member, send to Kafka topic."
   (log/info "Running a sample batch from Crossref.")
   (let [dois (sample-crossref/sample-all)]
-    (doseq [doi dois]
-      (let [id (generate-id)
-            package {:id id
-                     :doi (cr-doi/normalise-doi doi)
-                     :source "crossref-api"}]
-        (save id :sample (:visitor-sample-topic env) package)))))
+    (dorun
+      (pmap
+        (fn [doi]
+          (let [id (generate-id)
+                package {:id id
+                         :doi (cr-doi/normalise-doi doi)
+                         :source "crossref-api"}]
+            (save id :sample (:visitor-sample-topic env) package)))
+        dois))))
 
 (defn run-sample-crossref-continuous
   []
   (loop []
+    (log/info "Start a scan of sampling from Crossref!")
     (run-sample-crossref-once)
+    (log/info "Finished scan of sampling from Crossref!")
     (recur)))
 
 
@@ -108,17 +114,22 @@
   "Collagainect a random sample of DOIs, weighted by prefix member, send to Kafka topic."
   (log/info "Running a sample batch from DataCite.")
   (let [dois (sample-datacite/sample-all)]
-    (doseq [doi dois]
-      (let [id (generate-id)
-            package {:id id
-                     :doi (cr-doi/normalise-doi doi)
-                     :source "datacite-api"}]
-        (save id :sample (:visitor-sample-topic env) package)))))
+    (dorun
+      (pmap
+        (fn [doi]
+          (let [id (generate-id)
+                package {:id id
+                         :doi (cr-doi/normalise-doi doi)
+                         :source "datacite-api"}]
+            (save id :sample (:visitor-sample-topic env) package)))
+        dois))))
 
 (defn run-sample-datacite-continuous
   []
   (loop []
+    (log/info "Start a scan of sampling from DataCite!")
     (run-sample-datacite-once)
+    (log/info "Finished scan of sampling from DataCite!")
     (recur)))
 
 (defn subscribe
@@ -388,3 +399,4 @@
     ; Rescanning involves re-reading the output of the previous stage.
     "rescan-observation" (requeue (:visitor-sample-topic env) :sample)
     "rescan-extraction" (requeue (:visitor-observation-topic env) :observation)))
+

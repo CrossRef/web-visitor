@@ -78,7 +78,8 @@
   (let [; Order doesn't matter, so sort by prefix ID so we know how far we are through the job.
         prefixes-and-counts (sort-by first (all-prefixes))
         prefixes-and-samples (num-samples-per-prefix prefixes-and-counts)
-        dois (mapcat doi-sample-for-prefix prefixes-and-samples)
+        doi-sets (pmap doi-sample-for-prefix prefixes-and-samples)
+        dois (apply concat doi-sets)
         shuffled (shuffle dois)]
     shuffled))
 
