@@ -4,6 +4,7 @@
             [web-visitor.http :as http]
             [web-visitor.html :as html]
             [web-visitor.aggregate :as aggregate]
+            [web-visitor.artifact :as artifact]
             [web-visitor.handle :as handle]
             [crossref.util.doi :as cr-doi]
             [clojure.tools.logging :as log]
@@ -201,7 +202,7 @@
   [topic-name package-type]
   (log/info "Requeue type:" (name package-type) "topic:" topic-name)
   (doseq [[id storage-path] (all-keys-for-type package-type)]
-      (log/info "Requeue " id)
+      (log/info "Requeue " (name package-type) id "to" topic-name)
       (.send @kafka-producer
         (ProducerRecord. topic-name id storage-path))))
 
@@ -379,6 +380,24 @@
     (log/info "Start to save aggregation" id)
     (store/set-string @data-store (path-for :aggregation id) (json/write-str result))
     (log/info "Finished save aggregation" id)))
+
+
+(defn run-generate-artifacts
+  "Accept an Aggregate ID. Save all artifacts to storage with this id prefix."
+  []
+  (let [; List all aggregations ever done, find the last, ie most up-to-date one.
+        [id storage-path] (last (all-keys-for-type :aggregation))
+        aggregation-content (json/read-str (store/get-string @data-store storage-path) :key-fn keyword)]
+
+  (doseq [[artifact-name artifact-f] artifact/artifact-names]
+      (let [result (artifact-f aggregation-content)
+            ; Unlike other types, there are a numbre of outputs (i.e. each artifact)
+            output-path (str (path-for :artifact id) "/" artifact-name)]
+        (log/info "Generate Artifact" artifact-name " at" output-path)
+        (store/set-string @data-store output-path result)))
+
+  (log/info "Finished aggregating all.")))
+
 
 
 (defn -main
