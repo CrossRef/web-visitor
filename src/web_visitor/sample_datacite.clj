@@ -7,28 +7,27 @@
             [robert.bruce :refer [try-try-again]])
   (:gen-class))
 
-(defn all-prefixes-throwing
+(defn all-prefixes
   "Return a seq of [prefix, num-dois]."
   []
-    (let [response (http/get "https://search.datacite.org/list/generic?&facet.field=prefix"
+  (try-try-again
+    {:sleep 1000 :tries 5}
+    (fn []
+      (let [response (http/get "https://search.datacite.org/list/generic?&facet.field=prefix"
                              {:as :text})
 
-          lines (-> response
-                     deref
-                     :body
-                     (.split "\n"))
+            lines (-> response
+                       deref
+                       :body
+                       (.split "\n"))
 
-          result (->> lines
-                     (map (partial re-find #"^(10\.\d+); (\d+);$"))
-                     (map (fn [[_ prefix cnt]]
-                            [prefix (Integer/parseInt cnt)])))]
-      result))
+            result (->> lines
+                       (map (partial re-find #"^(10\.\d+); (\d+);$"))
+                       (map (fn [[_ prefix cnt]]
+                              [prefix (Integer/parseInt cnt)])))]
+        result))))
 
-(defn all-prefixes
-  []
-  (try-try-again
-    {:sleep 5000 :tries 2}
-    #(all-prefixes-throwing)))
+
 
 
 ; We're limited by the REST API to 100.
@@ -51,25 +50,23 @@
              [prefix random-offset num-samples]))
           prefixes-and-counts)))
 
-(defn doi-sample-for-prefix-throwing
+(defn doi-sample-for-prefix
   "Return a seq of a sample of DOIs for the prefix."
   [[prefix random-offset num-samples]]
-  (log/info "Sample " num-samples " DOIs for prefix" prefix)
-  (let [response @(http/get "https://api.datacite.org/works"
-                           {:query-params {:rows num-samples
-                                           :offset random-offset
-                                           :query (str "prefix:" prefix)}
-                            :as :text})
-        body (json/read-str (:body response) :key-fn keyword)
-        works (-> body :data)
-        dois (map :id works)]
-    dois))
-
-(defn doi-sample-for-prefix
-  [input]
   (try-try-again
     {:sleep 5000 :tries 2}
-    #(doi-sample-for-prefix-throwing input)))
+    (fn []
+      (log/info "Sample " num-samples " DOIs for prefix" prefix)
+      (let [response @(http/get "https://api.datacite.org/works"
+                               {:query-params {:rows num-samples
+                                               :offset random-offset
+                                               :query (str "prefix:" prefix)}
+                                :as :text})
+            body (json/read-str (:body response) :key-fn keyword)
+            works (-> body :data)
+            dois (map :id works)]
+        dois))))
+
 
 
 (defn sample-all

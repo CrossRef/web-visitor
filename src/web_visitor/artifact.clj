@@ -1,7 +1,36 @@
 (ns web-visitor.artifact
-  (:require [clojure.tools.logging :as log]))
+  (:require [clojure.tools.logging :as log]
+    [clojure.set]))
 
 (defn gt-zero [x] (> (or x 0) 0))
+
+(defn prefixes-for-source
+  "Find prefixes for the given source id. Source id can be one of :crossref-api or :datacite-api"
+  [input source-id]
+  (->>
+    input
+    :prefixes
+    (filter #(-> % second :source-counts source-id gt-zero))
+    (map first)
+    (map name)
+    set))
+
+(defn aggregation->crossref-doi-prefix-list
+  "All prefixes that were reached by at least one Crossref sample."
+  [input]
+  (-> input (prefixes-for-source :crossref-api) sort to-text))
+
+
+(defn aggregation->datacite-doi-prefix-list
+  [input]
+  "All prefixes that were reached by at least one DataCite sample."
+  (-> input (prefixes-for-source :datacite-api) sort to-text))
+
+
+(defn aggregation->doi-prefix-list
+  "All prefixes that were reached."
+  [input]
+  (->> input :prefixes keys (map name) set to-text))
 
 (defn union-domains-from-source
   "All domains that were arrived from a particular source, including http destination, browser destination and resource URL.
@@ -192,7 +221,10 @@
 
 (def artifact-names
   "Artifact name, function pairs."
-  [["crossref-full-domain-list" aggregation->crossref-full-domain-list ]
+  [["crossref-doi-prefix-list" aggregation->crossref-doi-prefix-list]
+   ["datacite-doi-prefix-list" aggregation->datacite-doi-prefix-list]
+   ["doi-prefix-list" aggregation->doi-prefix-list]
+   ["crossref-full-domain-list" aggregation->crossref-full-domain-list ]
    ["datacite-full-domain-list" aggregation->datacite-full-domain-list ]
    ["full-domain-list" aggregation->full-domain-list ]
    ["intersection-domain-list" aggregation->intersection-domain-list]

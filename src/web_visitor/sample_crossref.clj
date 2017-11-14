@@ -12,32 +12,30 @@
 
 (def member-page-size 1000)
 
-(defn all-members-throwing
-  "Return a seq of [member-id, num-dois]."
-  ([] (all-members-throwing 0))
-  ([offset]
-    (log/info "Fetch all members, offset" offset)
-    (let [response @(http/get (str api-base "members")
-                             {:query-params {
-                                :rows member-page-size
-                                :offset offset
-                                :mailto "eventdata@crossref.org"}
-                              :as :text
-                              :headers web-visitor.http/headers})
-          body (json/read-str (:body response) :key-fn keyword)
-          members (-> body :message :items)
-          ; A potential REST API bug sometimes returns nil for count.
-          ; Default to 1.
-          results (map #(vector (:id %) (or (-> % :counts :total-dois) 1)) members)]
-      (if (empty? results)
-        []
-        (lazy-cat results (all-members-throwing (+ offset member-page-size)))))))
-
 (defn all-members
-  []
-  (try-try-again
-    {:sleep 5000 :tries 2}
-    #(all-members-throwing)))
+  "Return a seq of [member-id, num-dois]."
+  ([] (doall (sort-by first (all-members 0))))
+  ([offset]
+    (try-try-again
+      {:sleep 1000 :tries 5}
+      (fn []
+        (log/info "Fetch all members, offset" offset)
+        (let [response @(http/get
+                          (str api-base "members")
+                          {:query-params {
+                           :rows member-page-size
+                           :offset offset
+                           :mailto "eventdata@crossref.org"}
+                           :as :text
+                           :headers web-visitor.http/headers})
+              body (json/read-str (:body response) :key-fn keyword)
+              members (-> body :message :items)
+              ; A potential REST API bug sometimes returns nil for count.
+              ; Default to 1.
+              results (map #(vector (:id %) (or (-> % :counts :total-dois) 1)) members)]
+          (if (empty? results)
+            []
+            (lazy-cat results (all-members (+ offset member-page-size)))))))))
 
 
 ; We're limited by the REST API to 100.
@@ -56,25 +54,24 @@
                       (int (* scale-factor (second %)))))
     members-and-counts)))
 
-(defn doi-sample-for-member-throwing
+(defn doi-sample-for-member
   "Return a seq of a sample of DOIs for the member."
   [[member-id num-samples]]
   (log/info "Sample " num-samples " DOIs for member" member-id)
-  (let [response @(http/get (str api-base "works")
-                           {:query-params {:sample num-samples
-                                           :select "DOI"
-                                           :filter (str "member:" member-id)
-                                           :mailto "eventdata@crossref.org"}
-                            :as :text})
+  (try-try-again
+    {:sleep 10000 :tries 5}
+    (fn []
+      (let [response @(http/get
+                        (str api-base "works")
+                        {:query-params {:sample num-samples
+                                        :select "DOI"
+                                        :filter (str "member:" member-id)
+                                        :mailto "eventdata@crossref.org"}
+                         :as :text})
         body (json/read-str (:body response) :key-fn keyword)
         works (-> body :message :items)]
-    (map :DOI works)))
+      (map :DOI works)))))
 
-(defn doi-sample-for-member
-  [input]
-  (try-try-again
-    {:sleep 5000 :tries 2}
-    #(doi-sample-for-member-throwing input)))
 
 
 (defn sample-all

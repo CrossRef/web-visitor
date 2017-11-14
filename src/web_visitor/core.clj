@@ -415,6 +415,9 @@
     ; Aggregation is a one-off activity.
     "aggregation-once" (run-aggregation-once)
 
+    ; Artifact-building is a one-off activity.
+    "artifacts-once" (run-generate-artifacts)
+
     ; Rescanning involves re-reading the output of the previous stage.
     "rescan-observation" (requeue (:visitor-sample-topic env) :sample)
     "rescan-extraction" (requeue (:visitor-observation-topic env) :observation)))
