@@ -25,6 +25,7 @@ services:
     build: .
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run sample-crossref-continuous"
 
 
@@ -45,6 +46,7 @@ services:
     build: .
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run sample-datacite-continuous"
 
 
@@ -67,6 +69,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
   observation2:
@@ -87,6 +90,7 @@ services:
       - SYS_ADMIN
     volumes:
      - .:/usr/src/app
+     - ./.m2-cache:/home/chrome/.m2
     command: "lein run observation-continuous"
 
 
